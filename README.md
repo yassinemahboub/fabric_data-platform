@@ -16,3 +16,7 @@ At its core, this PoC implements the **Medallion Architecture** in Microsoft Fab
 
 All ingestion and transformation logic is dynamically driven via a centralized **SQL metadata catalog**, making the entire pipeline **extensible**, **parameterized**, and **low-code**.
 
+![Fabric Architecture Diagram](https://raw.githubusercontent.com/yassinemahboub/fabric_data-platform/refs/heads/main/IMAGES/Project%20Archi.png)
+
+
+
