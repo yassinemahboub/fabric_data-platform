@@ -1,0 +1,486 @@
+{
+    "name": "NORTHWIND_CHILD",
+    "objectId": "bcf8b029-8537-4486-824e-9ecc4244a6a4",
+    "properties": {
+        "activities": [
+            {
+                "name": "LoadType",
+                "type": "IfCondition",
+                "dependsOn": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@empty(pipeline().parameters.LastWatermark)",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "New Watermark",
+                            "type": "Lookup",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SqlServerSource",
+                                    "sqlReaderQuery": {
+                                        "value": "@concat(\n      'SELECT MAX(',\n        if(equals(pipeline().parameters.WatermarkType,'Datetime'),\n           concat('CAST(',pipeline().parameters.WatermarkColumn,' AS DATETIME)'),\n           pipeline().parameters.WatermarkColumn\n        ),\n      ') AS NewWatermark ',\n      'FROM [', pipeline().parameters.TableSchema, '].[', pipeline().parameters.TableName, ']'\n  )",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None"
+                                },
+                                "datasetSettings": {
+                                    "annotations": [],
+                                    "type": "SqlServerTable",
+                                    "schema": [],
+                                    "typeProperties": {
+                                        "database": "northwind"
+                                    },
+                                    "externalReferences": {
+                                        "connection": "0f793795-e133-4471-a88a-0f2c88d0d36d"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "Old Watermark",
+                            "type": "Lookup",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "source": {
+                                    "type": "FabricSqlDatabaseSource",
+                                    "sqlReaderQuery": {
+                                        "value": "@concat(\n    'SELECT LastWatermark AS OldWatermark FROM dbo.SQLCatalogTable WHERE TableSchema = ''', \n    pipeline().parameters.TableSchema, \n    ''' AND TableName = ''', \n    pipeline().parameters.TableName, ''''\n)\n",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None"
+                                },
+                                "datasetSettings": {
+                                    "annotations": [],
+                                    "connectionSettings": {
+                                        "name": "metabase",
+                                        "properties": {
+                                            "annotations": [],
+                                            "type": "FabricSqlDatabase",
+                                            "typeProperties": {
+                                                "workspaceId": "63133ed5-ae8c-44aa-ac94-7a2c7f5d65cc",
+                                                "artifactId": "e095b77f-0188-464e-9e26-93176db232a4"
+                                            },
+                                            "externalReferences": {
+                                                "connection": "1aefec0f-b5c8-4278-9e85-300a0a1d690f"
+                                            }
+                                        }
+                                    },
+                                    "type": "FabricSqlDatabaseTable",
+                                    "schema": []
+                                }
+                            }
+                        },
+                        {
+                            "name": "Incremental Load",
+                            "type": "Copy",
+                            "dependsOn": [
+                                {
+                                    "activity": "New Watermark",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                {
+                                    "activity": "Old Watermark",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SqlServerSource",
+                                    "sqlReaderQuery": {
+                                        "value": "@concat(\n  'SELECT * FROM [', pipeline().parameters.TableSchema, '].[', pipeline().parameters.TableName, ']',\n  if(equals(pipeline().parameters.WatermarkType, 'Generic'), '', \n    concat(\n      ' WHERE ', pipeline().parameters.WatermarkColumn,\n      if(equals(pipeline().parameters.WatermarkType, 'Datetime'), ' > ''', ' > '),\n      activity('Old Watermark').output.firstRow.OldWatermark,\n      if(equals(pipeline().parameters.WatermarkType, 'Datetime'), '''', ''),\n      ' AND ', pipeline().parameters.WatermarkColumn,\n      if(equals(pipeline().parameters.WatermarkType, 'Datetime'), ' <= ''', ' <= '),\n      activity('New Watermark').output.firstRow.NewWatermark,\n      if(equals(pipeline().parameters.WatermarkType, 'Datetime'), '''', '')\n    )\n  )\n)\n",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None",
+                                    "datasetSettings": {
+                                        "annotations": [],
+                                        "type": "SqlServerTable",
+                                        "schema": [],
+                                        "typeProperties": {
+                                            "database": "northwind"
+                                        },
+                                        "externalReferences": {
+                                            "connection": "0f793795-e133-4471-a88a-0f2c88d0d36d"
+                                        }
+                                    }
+                                },
+                                "sink": {
+                                    "type": "ParquetSink",
+                                    "storeSettings": {
+                                        "type": "LakehouseWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "ParquetWriteSettings",
+                                        "enableVertiParquet": true
+                                    },
+                                    "datasetSettings": {
+                                        "annotations": [],
+                                        "linkedService": {
+                                            "name": "LH_BRONZE",
+                                            "properties": {
+                                                "annotations": [],
+                                                "type": "Lakehouse",
+                                                "typeProperties": {
+                                                    "workspaceId": "63133ed5-ae8c-44aa-ac94-7a2c7f5d65cc",
+                                                    "artifactId": "aa75f8b5-82e9-48b9-97f5-f1341b5bd3c2",
+                                                    "rootFolder": "Files"
+                                                }
+                                            }
+                                        },
+                                        "type": "Parquet",
+                                        "typeProperties": {
+                                            "location": {
+                                                "type": "LakehouseLocation",
+                                                "fileName": {
+                                                    "value": "@concat(pipeline().parameters.TableName, '_', formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd_HH-mm-ss'), '.parquet')",
+                                                    "type": "Expression"
+                                                },
+                                                "folderPath": {
+                                                    "value": "@concat(\n    'Bronze/SOURCE=SQL_SERVER/', \n    'DATABASE=',pipeline().parameters.DatabaseName,'/',\n    'Incremental/',\n    pipeline().parameters.TableName, '/',\n    'YEAR=',  formatDateTime(pipeline().TriggerTime, 'yyyy'), '/',\n    'MONTH=', formatDateTime(pipeline().TriggerTime, 'MM'), '/',\n    'DAY=',   formatDateTime(pipeline().TriggerTime, 'dd')\n    )",
+                                                    "type": "Expression"
+                                                }
+                                            },
+                                            "compressionCodec": "snappy"
+                                        },
+                                        "schema": []
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "Inc Success",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Incremental Load",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "variableName": "pipelineReturnValue",
+                                "value": [
+                                    {
+                                        "key": "BronzeMetadata",
+                                        "value": {
+                                            "type": "Expression",
+                                            "content": "@json(\n  concat(\n    '{',\n      '\"DatabaseName\":\"',        pipeline().parameters.DatabaseName,        '\",',\n      '\"TableName\":\"',           pipeline().parameters.TableName,           '\",',\n      '\"TableSchema\":\"',         pipeline().parameters.TableSchema,         '\",',\n      '\"WatermarkColumn\":\"',     pipeline().parameters.WatermarkColumn,     '\",',\n      '\"WatermarkType\":\"',       pipeline().parameters.WatermarkType,       '\",',\n      '\"KeyColumn\":\"',           pipeline().parameters.KeyColumn,           '\",',\n      '\"PartitionColumn\":\"',     pipeline().parameters.PartitionColumn,           '\",',\n      '\"PartitionType\":\"',       pipeline().parameters.PartitionType,           '\",',\n      '\"Modeling\":\"',            pipeline().parameters.Modeling,           '\",',\n      '\"DataDomain\":\"',            pipeline().parameters.DataDomain,           '\",',\n      '\"IsInitialLoad\":\"',       pipeline().parameters.IsInitialLoad,       '\",',\n      '\"BronzeFolderPath\":\"',\n        concat(\n          'Bronze/SOURCE=SQL_SERVER/', \n          'DATABASE=',pipeline().parameters.DatabaseName,'/',\n         'Incremental/',\n        pipeline().parameters.TableName, '/',\n        'YEAR=',  formatDateTime(pipeline().TriggerTime, 'yyyy'), '/',\n        'MONTH=', formatDateTime(pipeline().TriggerTime, 'MM'), '/',\n        'DAY=',   formatDateTime(pipeline().TriggerTime, 'dd'), '/',\n           '*.parquet'\n        ),\n      '\",',\n      '\"NewWatermark\":\"',        activity('New Watermark').output.firstRow.NewWatermark, '\",',\n      '\"RowsCopied\":\"',          activity('Incremental Load').output.rowsCopied,             '\",',\n      '\"BronzeStatus\":\"Success\"',\n    '}'\n  )\n)"
+                                        }
+                                    }
+                                ],
+                                "setSystemVariable": true
+                            }
+                        },
+                        {
+                            "name": "Inc Failure",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Incremental Load",
+                                    "dependencyConditions": [
+                                        "Failed"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "variableName": "pipelineReturnValue",
+                                "value": [
+                                    {
+                                        "key": "BronzeMetadata",
+                                        "value": {
+                                            "type": "Expression",
+                                            "content": "@json(\n  concat(\n    '{',\n      '\"DatabaseName\":\"', pipeline().parameters.DatabaseName, '\",',\n      '\"TableName\":\"', pipeline().parameters.TableName, '\",',\n      '\"TableSchema\":\"',  pipeline().parameters.TableSchema,'\",',\n      '\"WatermarkColumn\":\"', pipeline().parameters.WatermarkColumn, '\",',\n      '\"WatermarkType\":\"', pipeline().parameters.WatermarkType, '\",',\n      '\"KeyColumn\":\"', pipeline().parameters.KeyColumn, '\",',\n      '\"IsInitialLoad\":\"',  pipeline().parameters.IsInitialLoad,'\",',\n      '\"NewWatermark\":\"', activity('New Watermark').output.firstRow.NewWatermark, '\",',\n      '\"BronzeStatus\": \"Failed: ', activity('Incremental Load').output.errors, '\",',\n    '}'\n  )\n)"
+                                        }
+                                    }
+                                ],
+                                "setSystemVariable": true
+                            }
+                        }
+                    ],
+                    "ifTrueActivities": [
+                        {
+                            "name": "Initial Watermark",
+                            "type": "Lookup",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SqlServerSource",
+                                    "sqlReaderQuery": {
+                                        "value": "@concat(\n      'SELECT MAX(',\n        if(equals(pipeline().parameters.WatermarkType,'Datetime'),\n           concat('CAST(',pipeline().parameters.WatermarkColumn,' AS DATETIME)'),\n           pipeline().parameters.WatermarkColumn\n        ),\n      ') AS NewWatermark ',\n      'FROM [', pipeline().parameters.TableSchema, '].[', pipeline().parameters.TableName, ']'\n  )",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None"
+                                },
+                                "datasetSettings": {
+                                    "annotations": [],
+                                    "type": "SqlServerTable",
+                                    "schema": [],
+                                    "typeProperties": {
+                                        "database": "northwind"
+                                    },
+                                    "externalReferences": {
+                                        "connection": "0f793795-e133-4471-a88a-0f2c88d0d36d"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "Full Load",
+                            "type": "Copy",
+                            "dependsOn": [
+                                {
+                                    "activity": "Initial Watermark",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SqlServerSource",
+                                    "sqlReaderQuery": {
+                                        "value": "@concat(\n  'SELECT * FROM [', pipeline().parameters.TableSchema, '].[', pipeline().parameters.TableName, ']',\n  if(equals(pipeline().parameters.WatermarkType, 'Generic'), '', \n    concat(\n      ' WHERE ', pipeline().parameters.WatermarkColumn,\n      if(equals(pipeline().parameters.WatermarkType, 'Datetime'), ' <= ''', ' <= '),\n      activity('Initial Watermark').output.firstRow.NewWatermark,\n      if(equals(pipeline().parameters.WatermarkType, 'Datetime'), '''', '')\n    )\n  )\n)\n",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None",
+                                    "datasetSettings": {
+                                        "annotations": [],
+                                        "type": "SqlServerTable",
+                                        "schema": [],
+                                        "typeProperties": {
+                                            "database": "northwind"
+                                        },
+                                        "externalReferences": {
+                                            "connection": "0f793795-e133-4471-a88a-0f2c88d0d36d"
+                                        }
+                                    }
+                                },
+                                "sink": {
+                                    "type": "ParquetSink",
+                                    "storeSettings": {
+                                        "type": "LakehouseWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "ParquetWriteSettings",
+                                        "enableVertiParquet": true
+                                    },
+                                    "datasetSettings": {
+                                        "annotations": [],
+                                        "linkedService": {
+                                            "name": "LH_BRONZE",
+                                            "properties": {
+                                                "annotations": [],
+                                                "type": "Lakehouse",
+                                                "typeProperties": {
+                                                    "workspaceId": "63133ed5-ae8c-44aa-ac94-7a2c7f5d65cc",
+                                                    "artifactId": "aa75f8b5-82e9-48b9-97f5-f1341b5bd3c2",
+                                                    "rootFolder": "Files"
+                                                }
+                                            }
+                                        },
+                                        "type": "Parquet",
+                                        "typeProperties": {
+                                            "location": {
+                                                "type": "LakehouseLocation",
+                                                "fileName": {
+                                                    "value": "@concat(pipeline().parameters.TableName, '_', formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd_HH-mm-ss'), '.parquet')",
+                                                    "type": "Expression"
+                                                },
+                                                "folderPath": {
+                                                    "value": "@concat(\n    'Bronze/SOURCE=SQL_SERVER/', \n    'DATABASE=',pipeline().parameters.DatabaseName,'/',\n    'Full/',\n    pipeline().parameters.TableName, '/',\n    'YEAR=',  formatDateTime(pipeline().TriggerTime, 'yyyy'), '/',\n    'MONTH=', formatDateTime(pipeline().TriggerTime, 'MM'), '/',\n    'DAY=',   formatDateTime(pipeline().TriggerTime, 'dd')\n    )",
+                                                    "type": "Expression"
+                                                }
+                                            },
+                                            "compressionCodec": "snappy"
+                                        },
+                                        "schema": []
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "Full Success",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Full Load",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "variableName": "pipelineReturnValue",
+                                "value": [
+                                    {
+                                        "key": "BronzeMetadata",
+                                        "value": {
+                                            "type": "Expression",
+                                            "content": "@json(\n  concat(\n    '{',\n      '\"DatabaseName\":\"',        pipeline().parameters.DatabaseName,        '\",',\n      '\"TableName\":\"',           pipeline().parameters.TableName,           '\",',\n      '\"TableSchema\":\"',         pipeline().parameters.TableSchema,         '\",',\n      '\"WatermarkColumn\":\"',     pipeline().parameters.WatermarkColumn,     '\",',\n      '\"WatermarkType\":\"',       pipeline().parameters.WatermarkType,       '\",',\n      '\"KeyColumn\":\"',           pipeline().parameters.KeyColumn,           '\",',\n      '\"PartitionColumn\":\"',     pipeline().parameters.PartitionColumn,           '\",',\n      '\"PartitionType\":\"',       pipeline().parameters.PartitionType,           '\",',\n      '\"Modeling\":\"',            pipeline().parameters.Modeling,           '\",',\n      '\"DataDomain\":\"',            pipeline().parameters.DataDomain,           '\",',\n      '\"IsInitialLoad\":\"',       pipeline().parameters.IsInitialLoad,       '\",',\n      '\"BronzeFolderPath\":\"',\n        concat(\n          'Bronze/SOURCE=SQL_SERVER/', \n          'DATABASE=',pipeline().parameters.DatabaseName,'/',\n         'Full/',\n        pipeline().parameters.TableName, '/',\n        'YEAR=',  formatDateTime(pipeline().TriggerTime, 'yyyy'), '/',\n        'MONTH=', formatDateTime(pipeline().TriggerTime, 'MM'), '/',\n        'DAY=',   formatDateTime(pipeline().TriggerTime, 'dd'), '/',\n           '*.parquet'\n        ),\n      '\",',\n      '\"NewWatermark\":\"',        activity('Initial Watermark').output.firstRow.NewWatermark, '\",',\n      '\"RowsCopied\":\"',          activity('Full Load').output.rowsCopied,             '\",',\n      '\"BronzeStatus\":\"Success\"',\n    '}'\n  )\n)"
+                                        }
+                                    }
+                                ],
+                                "setSystemVariable": true
+                            }
+                        },
+                        {
+                            "name": "Full Failure",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Full Load",
+                                    "dependencyConditions": [
+                                        "Failed"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "variableName": "pipelineReturnValue",
+                                "value": [
+                                    {
+                                        "key": "BronzeMetadata",
+                                        "value": {
+                                            "type": "Expression",
+                                            "content": "@json(\n  concat(\n    '{',\n      '\"DatabaseName\":\"', pipeline().parameters.DatabaseName, '\",',\n      '\"TableName\":\"', pipeline().parameters.TableName, '\",',\n      '\"TableSchema\":\"',  pipeline().parameters.TableSchema,'\",',\n      '\"WatermarkColumn\":\"', pipeline().parameters.WatermarkColumn, '\",',\n      '\"WatermarkType\":\"', pipeline().parameters.WatermarkType, '\",',\n      '\"KeyColumn\":\"', pipeline().parameters.KeyColumn, '\",',\n      '\"IsInitialLoad\":\"',  pipeline().parameters.IsInitialLoad,'\",',\n      '\"NewWatermark\":\"', activity('Initial Watermark').output.firstRow.NewWatermark, '\",',\n      '\"BronzeStatus\": \"Failed: ', activity('Full Load').output.errors, '\",',\n    '}'\n  )\n)"
+                                        }
+                                    }
+                                ],
+                                "setSystemVariable": true
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "DatabaseName": {
+                "type": "string",
+                "defaultValue": "northwind"
+            },
+            "TableName": {
+                "type": "string",
+                "defaultValue": "Employees"
+            },
+            "TableSchema": {
+                "type": "string",
+                "defaultValue": "dbo"
+            },
+            "WatermarkColumn": {
+                "type": "string",
+                "defaultValue": "EmployeeID"
+            },
+            "WatermarkType": {
+                "type": "string",
+                "defaultValue": "ID"
+            },
+            "KeyColumn": {
+                "type": "string",
+                "defaultValue": "EmployeeID"
+            },
+            "PartitionColumn": {
+                "type": "string"
+            },
+            "PartitionType": {
+                "type": "string"
+            },
+            "Modeling": {
+                "type": "string",
+                "defaultValue": "Dimensions"
+            },
+            "DataDomain": {
+                "type": "string",
+                "defaultValue": "Retail"
+            },
+            "IsInitialLoad": {
+                "type": "string",
+                "defaultValue": "1"
+            },
+            "LastWatermark": {
+                "type": "string"
+            }
+        },
+        "lastModifiedByObjectId": "a01f4899-82a2-4a6c-a39a-c6480c163127",
+        "lastPublishTime": "2025-06-27T18:31:35Z"
+    }
+}
