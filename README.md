@@ -53,6 +53,8 @@ This layer acts as the **brain of the platform**, driving logic from metadata wh
 - Orchestrates the Silver and Gold notebooks  
 - Filters results, handles error logging, updates watermarks
 
+- ![Parent Pipeline](https://raw.githubusercontent.com/yassinemahboub/fabric_data-platform/refs/heads/main/IMAGES/Parent%20Pipeline.png)
+
 #### 🔄 `NORTHWIND_CHILD` – Table Ingestion Engine
 
 - Determines load type (initial or incremental)  
