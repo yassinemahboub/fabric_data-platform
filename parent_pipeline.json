@@ -1,0 +1,628 @@
+{
+    "name": "NORTHWIND_PARENT",
+    "objectId": "32dcae43-492d-4062-b239-12173e787d40",
+    "properties": {
+        "activities": [
+            {
+                "name": "SQL Metabase",
+                "type": "Lookup",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "FabricSqlDatabaseSource",
+                        "sqlReaderQuery": {
+                            "value": "@concat('SELECT * FROM dbo.SQLCatalogTable WHERE DatabaseName = ''', pipeline().parameters.DatabaseName,'''')",
+                            "type": "Expression"
+                        },
+                        "queryTimeout": "02:00:00",
+                        "partitionOption": "None"
+                    },
+                    "firstRowOnly": false,
+                    "datasetSettings": {
+                        "annotations": [],
+                        "connectionSettings": {
+                            "name": "metabase",
+                            "properties": {
+                                "annotations": [],
+                                "type": "FabricSqlDatabase",
+                                "typeProperties": {
+                                    "workspaceId": "63133ed5-ae8c-44aa-ac94-7a2c7f5d65cc",
+                                    "artifactId": "e095b77f-0188-464e-9e26-93176db232a4"
+                                },
+                                "externalReferences": {
+                                    "connection": "1aefec0f-b5c8-4278-9e85-300a0a1d690f"
+                                }
+                            }
+                        },
+                        "type": "FabricSqlDatabaseTable",
+                        "schema": []
+                    }
+                }
+            },
+            {
+                "name": "Bronze Layer",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "SQL Metabase",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('SQL Metabase').output.value",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Save Metadata",
+                            "type": "AppendVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Table Ingestion",
+                                    "dependencyConditions": [
+                                        "Succeeded",
+                                        "Failed"
+                                    ]
+                                }
+                            ],
+                            "typeProperties": {
+                                "variableName": "BronzeMetadata",
+                                "value": {
+                                    "value": "@activity('Table Ingestion').output.pipelineReturnValue",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Table Ingestion",
+                            "type": "ExecutePipeline",
+                            "dependsOn": [],
+                            "policy": {
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "pipeline": {
+                                    "referenceName": "bcf8b029-8537-4486-824e-9ecc4244a6a4",
+                                    "type": "PipelineReference"
+                                },
+                                "waitOnCompletion": true,
+                                "parameters": {
+                                    "DatabaseName": {
+                                        "value": "@item().DatabaseName",
+                                        "type": "Expression"
+                                    },
+                                    "TableName": {
+                                        "value": "@item().TableName",
+                                        "type": "Expression"
+                                    },
+                                    "TableSchema": {
+                                        "value": "@item().TableSchema",
+                                        "type": "Expression"
+                                    },
+                                    "WatermarkColumn": {
+                                        "value": "@item().WatermarkColumn",
+                                        "type": "Expression"
+                                    },
+                                    "WatermarkType": {
+                                        "value": "@item().WatermarkType",
+                                        "type": "Expression"
+                                    },
+                                    "KeyColumn": {
+                                        "value": "@item().KeyColumn",
+                                        "type": "Expression"
+                                    },
+                                    "PartitionColumn": {
+                                        "value": "@item().PartitionColumn",
+                                        "type": "Expression"
+                                    },
+                                    "PartitionType": {
+                                        "value": "@item().PartitionType",
+                                        "type": "Expression"
+                                    },
+                                    "Modeling": {
+                                        "value": "@item().Modeling",
+                                        "type": "Expression"
+                                    },
+                                    "DataDomain": {
+                                        "value": "@item().DataDomain",
+                                        "type": "Expression"
+                                    },
+                                    "IsInitialLoad": {
+                                        "value": "@item().IsInitialLoad",
+                                        "type": "Expression"
+                                    },
+                                    "LastWatermark": {
+                                        "value": "@item().LastWatermark",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Silver Layer",
+                "type": "TridentNotebook",
+                "dependsOn": [
+                    {
+                        "activity": "Bronze Layer",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "notebookId": "b2189577-5f10-40be-aa77-9a1a47c7efb9",
+                    "workspaceId": "63133ed5-ae8c-44aa-ac94-7a2c7f5d65cc",
+                    "parameters": {
+                        "bronze_metadata": {
+                            "value": {
+                                "value": "@string(variables('BronzeMetadata') )\n",
+                                "type": "Expression"
+                            },
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "Gold Layer",
+                "type": "TridentNotebook",
+                "dependsOn": [
+                    {
+                        "activity": "Silver Layer",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "notebookId": "253b1663-ab00-4895-9396-78cc61a3772b",
+                    "workspaceId": "63133ed5-ae8c-44aa-ac94-7a2c7f5d65cc",
+                    "parameters": {
+                        "silver_metadata": {
+                            "value": {
+                                "value": "@string(activity('Silver Layer').output.result.exitValue)",
+                                "type": "Expression"
+                            },
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "Succes Tables",
+                "type": "Filter",
+                "dependsOn": [
+                    {
+                        "activity": "Gold Layer",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@json(activity('Gold Layer').output.result.exitValue)",
+                        "type": "Expression"
+                    },
+                    "condition": {
+                        "value": "@equals(item().GoldStatus, 'Success')",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Failed Tables",
+                "type": "Filter",
+                "dependsOn": [
+                    {
+                        "activity": "Gold Layer",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@json(activity('Gold Layer').output.result.exitValue)",
+                        "type": "Expression"
+                    },
+                    "condition": {
+                        "value": "@not(equals(item().GoldStatus, 'Success'))",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Logs Watermarks",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Succes Tables",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('Succes Tables').output.value",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Update Watermark",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "storedProcedureName": "[dbo].[sp_UpdateSQLWatermark]",
+                                "storedProcedureParameters": {
+                                    "DatabaseName": {
+                                        "value": {
+                                            "value": "@item().DatabaseName",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "NewWatermark": {
+                                        "value": {
+                                            "value": "@item().NewWatermark",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "TableName": {
+                                        "value": {
+                                            "value": "@item().TableName",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "TableSchema": {
+                                        "value": {
+                                            "value": "@item().TableSchema",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    }
+                                }
+                            },
+                            "connectionSettings": {
+                                "name": "metabase",
+                                "properties": {
+                                    "annotations": [],
+                                    "type": "FabricSqlDatabase",
+                                    "typeProperties": {
+                                        "workspaceId": "63133ed5-ae8c-44aa-ac94-7a2c7f5d65cc",
+                                        "artifactId": "e095b77f-0188-464e-9e26-93176db232a4"
+                                    },
+                                    "externalReferences": {
+                                        "connection": "1aefec0f-b5c8-4278-9e85-300a0a1d690f"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "Success Logs",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [
+                                {
+                                    "activity": "Update Watermark",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "storedProcedureName": "[dbo].[sp_SQLInsertTableLog]",
+                                "storedProcedureParameters": {
+                                    "BronzeStatus": {
+                                        "value": {
+                                            "value": "@item().BronzeStatus",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "DatabaseName": {
+                                        "value": {
+                                            "value": "@item().DatabaseName",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "GoldStatus": {
+                                        "value": {
+                                            "value": "@item().GoldStatus",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "IsInitialLoad": {
+                                        "value": {
+                                            "value": "@item().IsInitialLoad",
+                                            "type": "Expression"
+                                        },
+                                        "type": "Boolean"
+                                    },
+                                    "PipelineName": {
+                                        "value": {
+                                            "value": "@pipeline().Pipeline",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "PipelineRunID": {
+                                        "value": {
+                                            "value": "@pipeline().RunId",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "RowsInserted": {
+                                        "value": {
+                                            "value": "@item().RowsCopied",
+                                            "type": "Expression"
+                                        },
+                                        "type": "Int32"
+                                    },
+                                    "Runtime": {
+                                        "value": {
+                                            "value": "@pipeline().TriggerTime",
+                                            "type": "Expression"
+                                        },
+                                        "type": "Datetime"
+                                    },
+                                    "SemanticRefresh": {
+                                        "value": "Success",
+                                        "type": "String"
+                                    },
+                                    "SilverStatus": {
+                                        "value": {
+                                            "value": "@item().SilverStatus",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "TableName": {
+                                        "value": {
+                                            "value": "@item().TableName",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "TableSchema": {
+                                        "value": {
+                                            "value": "@item().TableSchema",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    }
+                                }
+                            },
+                            "connectionSettings": {
+                                "name": "metabase",
+                                "properties": {
+                                    "annotations": [],
+                                    "type": "FabricSqlDatabase",
+                                    "typeProperties": {
+                                        "workspaceId": "63133ed5-ae8c-44aa-ac94-7a2c7f5d65cc",
+                                        "artifactId": "e095b77f-0188-464e-9e26-93176db232a4"
+                                    },
+                                    "externalReferences": {
+                                        "connection": "1aefec0f-b5c8-4278-9e85-300a0a1d690f"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Failure Logs",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Failed Tables",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('Failed Tables').output.value",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Failed Logs",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "storedProcedureName": "[dbo].[sp_SQLInsertTableLog]",
+                                "storedProcedureParameters": {
+                                    "BronzeStatus": {
+                                        "value": {
+                                            "value": "@item().BronzeStatus",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "DatabaseName": {
+                                        "value": {
+                                            "value": "@item().DatabaseName",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "GoldStatus": {
+                                        "value": {
+                                            "value": "@item().GoldStatus",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "IsInitialLoad": {
+                                        "value": {
+                                            "value": "@item().IsInitialLoad",
+                                            "type": "Expression"
+                                        },
+                                        "type": "Boolean"
+                                    },
+                                    "PipelineName": {
+                                        "value": {
+                                            "value": "@pipeline().Pipeline",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "PipelineRunID": {
+                                        "value": {
+                                            "value": "@pipeline().RunId",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "RowsInserted": {
+                                        "value": {
+                                            "value": "0",
+                                            "type": "Expression"
+                                        },
+                                        "type": "Int32"
+                                    },
+                                    "Runtime": {
+                                        "value": {
+                                            "value": "@pipeline().TriggerTime",
+                                            "type": "Expression"
+                                        },
+                                        "type": "Datetime"
+                                    },
+                                    "SemanticRefresh": {
+                                        "value": "Failed",
+                                        "type": "String"
+                                    },
+                                    "SilverStatus": {
+                                        "value": {
+                                            "value": "@item().SilverStatus",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "TableName": {
+                                        "value": {
+                                            "value": "@item().TableName",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "TableSchema": {
+                                        "value": {
+                                            "value": "@item().TableSchema",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    }
+                                }
+                            },
+                            "connectionSettings": {
+                                "name": "metabase",
+                                "properties": {
+                                    "annotations": [],
+                                    "type": "FabricSqlDatabase",
+                                    "typeProperties": {
+                                        "workspaceId": "63133ed5-ae8c-44aa-ac94-7a2c7f5d65cc",
+                                        "artifactId": "e095b77f-0188-464e-9e26-93176db232a4"
+                                    },
+                                    "externalReferences": {
+                                        "connection": "1aefec0f-b5c8-4278-9e85-300a0a1d690f"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Wait1",
+                "type": "Wait",
+                "dependsOn": [
+                    {
+                        "activity": "Logs Watermarks",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Failure Logs",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "waitTimeInSeconds": 1
+                }
+            }
+        ],
+        "parameters": {
+            "DatabaseName": {
+                "type": "string",
+                "defaultValue": "northwind"
+            }
+        },
+        "variables": {
+            "BronzeMetadata": {
+                "type": "Array"
+            }
+        },
+        "lastModifiedByObjectId": "a01f4899-82a2-4a6c-a39a-c6480c163127",
+        "lastPublishTime": "2025-06-28T16:50:30Z"
+    }
+}
