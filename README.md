@@ -53,7 +53,7 @@ This layer acts as the **brain of the platform**, driving logic from metadata wh
 - Orchestrates the Silver and Gold notebooks  
 - Filters results, handles error logging, updates watermarks
 
-- ![Parent Pipeline](https://raw.githubusercontent.com/yassinemahboub/fabric_data-platform/refs/heads/main/IMAGES/Parent%20Pipeline.png)
+![Parent Pipeline](https://raw.githubusercontent.com/yassinemahboub/fabric_data-platform/refs/heads/main/IMAGES/Parent%20Pipeline.png)
 
 #### 🔄 `NORTHWIND_CHILD` – Table Ingestion Engine
 
@@ -61,6 +61,8 @@ This layer acts as the **brain of the platform**, driving logic from metadata wh
 - Computes new watermark based on column and type  
 - Executes delta or full extraction from SQL Server  
 - Returns structured metadata to parent for downstream orchestration
+
+![Child Pipeline](https://raw.githubusercontent.com/yassinemahboub/fabric_data-platform/refs/heads/main/IMAGES/Child%20Pipeline.png)
 
 ---
 
@@ -91,6 +93,8 @@ This layer acts as the **brain of the platform**, driving logic from metadata wh
 | `bridge_employeeterritories` | Bridge |
 
 These curated tables are **BI-ready**, designed for use in semantic models and performance dashboards (e.g., Power BI, Looker, or Synapse).
+
+![Semantic Model](https://raw.githubusercontent.com/yassinemahboub/fabric_data-platform/refs/heads/main/IMAGES/Data%20Model.png)
 
 ---
 
