@@ -1,7 +1,6 @@
-# ⚙️ Microsoft Fabric Retail Analytics – End-to-End Data Platform PoC  
-**A Metadata-Driven Lakehouse Architecture Using the Northwind Dataset**
+# ⚙️ Microsoft Fabric End-to-End Data Platform PoC  
 
-This project is a **production-grade proof of concept** for building a scalable, modular, and metadata-driven **data platform on Microsoft Fabric**. It demonstrates how to automate ingestion, transformation, and warehousing using industry best practices — all orchestrated with **notebooks**, **pipelines**, and **dynamic SQL configuration**.
+This project is a **production-grade proof of concept** for building a scalable, modular, and metadata-driven **data platform on Microsoft Fabric**. It demonstrates how to automate ingestion, transformation, and warehousing using industry best practices, all orchestrated with **notebooks**, **pipelines**, and **dynamic SQL configuration**.
 
 Leveraging the open-source **Northwind retail database**, this architecture simulates an **enterprise-grade data stack** capable of supporting real-time business reporting, analytics, and data governance for any retail organization.
 
